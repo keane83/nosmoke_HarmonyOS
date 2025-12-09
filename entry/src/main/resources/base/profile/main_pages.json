@@ -1,0 +1,11 @@
+{
+  "src": [
+    "pages/Index",
+    "pages/CigaretteSelection",
+    "pages/Statistics",
+    "pages/TriggerLogger",
+    "pages/MoneyCalculator",
+    "pages/Achievements",
+    "pages/Diary"
+  ]
+}
