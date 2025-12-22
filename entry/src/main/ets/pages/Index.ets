@@ -39,7 +39,8 @@ struct Index {
   @State bigSpin: number = 0; // 大按钮旋转角度
   @State miniSpin: number = 0; // 小按钮旋转角度
   @State isAnimatingActions: boolean = false;
-  private actionAngles: number[] = [0, 18, 36, 54, 72, 90];
+  @State isSmokeFinished: boolean = false; // 是否已经吸完（用于暂停粒子）
+  private actionAngles: number[] = [0, 18, 36, 54, 72, 90]; // 六个按钮，间隔18度
   private actionDistance: number = 200;
   
   private gyroListener?: (data: Vector3) => void;
@@ -48,6 +49,8 @@ struct Index {
   private audioCapturer?: audio.AudioCapturer;
   private isCapturing: boolean = false;
   private lastSmokeTime: number = 0;
+  private autoSmokeTimer?: number; // 5s 自动灼烧定时器
+  private finishThreshold: number = 0.08; // 认为接近烟蒂的阈值（8%）
 
   // 计算香烟尺寸信息
   private getCigaretteMetrics(): CigaretteMetrics {
@@ -75,6 +78,7 @@ struct Index {
   aboutToAppear() {
     this.initMicrophone();
     this.initGyroscope();
+    this.startAutoBurn();
   }
 
   // 初始化麦克风
@@ -157,12 +161,31 @@ struct Index {
     }
   }
 
-  // 模拟吸烟：快速缩短香烟
+  // 统一缩短逻辑，支持自动/手动
+  private shrinkCigarette(step: number, duration: number = 350) {
+    if (this.isSmokeFinished || step <= 0) {
+      return;
+    }
+    const targetLength = Math.max(0, this.cigaretteLength - step);
+    animateTo({
+      duration,
+      curve: Curve.EaseOut
+    }, () => {
+      this.cigaretteLength = targetLength;
+      this.updateSmokePosition();
+      if (this.cigaretteLength <= this.finishThreshold) {
+        this.handleCigaretteFinished();
+      }
+    });
+  }
+
+  // 模拟吸烟：带动画地缩短香烟（手动/声音触发）
   async simulateSmoking() {
-    // 每次吸烟缩短5%
-    this.cigaretteLength = Math.max(0, this.cigaretteLength - 0.05);
-    this.updateSmokePosition();
-    
+    // 如果已吸完，不响应（需手动重置）
+    if (this.isSmokeFinished) {
+      return;
+    }
+
     // 记录吸烟数据到持久化存储
     try {
       await SmokingDataManager.recordPuff();
@@ -171,13 +194,55 @@ struct Index {
     } catch (error) {
       console.error('记录吸烟数据失败: ' + JSON.stringify(error));
     }
-    
-    // 如果香烟吸完了，重置
-    if (this.cigaretteLength <= 0) {
-      setTimeout(() => {
-        this.cigaretteLength = 1.0;
-      }, 2000);
+
+    this.shrinkCigarette(0.05, 400);
+  }
+
+  // 自动燃烧：每5秒轻微缩短一次
+  private startAutoBurn() {
+    this.stopAutoBurn();
+    this.autoSmokeTimer = setInterval(() => {
+      this.autoBurnTick();
+    }, 100); // 0.1s 一次，保持更平滑的自然燃烧
+  }
+
+  private stopAutoBurn() {
+    if (this.autoSmokeTimer !== undefined) {
+      clearInterval(this.autoSmokeTimer);
+      this.autoSmokeTimer = undefined;
     }
+  }
+
+  private autoBurnTick() {
+    // 原先 5s 缩 0.015，相当于每秒 0.003；换算到 0.1s 缩约 0.0003
+    this.shrinkCigarette(0.0003, 120);
+  }
+
+  // 吸完后的处理：暂停粒子并提示
+  private async handleCigaretteFinished() {
+    if (this.isSmokeFinished) {
+      return;
+    }
+    this.isSmokeFinished = true;
+    this.stopAutoBurn();
+    // 记录一根完整烟
+    try {
+      await SmokingDataManager.recordCigarette();
+      console.info('已记录整根虚拟烟');
+    } catch (error) {
+      const err = error as Error;
+      console.error('记录整根烟失败: ' + JSON.stringify(err));
+    }
+    AlertDialog.show({
+      title: '提示',
+      message: '烟吸完了',
+      primaryButton: {
+        value: '知道了',
+        action: () => {
+          // 用户需手动点击"重置"按钮开始下一根
+        }
+      }
+    });
   }
 
   // 初始化陀螺仪
@@ -249,6 +314,8 @@ struct Index {
         console.error('停止麦克风失败: ' + JSON.stringify(error));
       }
     }
+
+    this.stopAutoBurn();
   }
 
   // 跳转到选烟界面
@@ -286,6 +353,14 @@ struct Index {
     });
   }
 
+  // 重置香烟状态
+  resetCigarette() {
+    this.isSmokeFinished = false;
+    this.cigaretteLength = 1.0;
+    this.updateSmokePosition();
+    this.startAutoBurn();
+  }
+
   // 跳转到戒烟日记
   navigateToDiary() {
     router.pushUrl({
@@ -296,7 +371,7 @@ struct Index {
   // 底部浮动菜单配置
   private getActionItems(): ActionItem[] {
     const items: ActionItem[] = [
-      { label: '选烟', action: (): void => { this.navigateToCigaretteSelection(); } } as ActionItem,
+      { label: '重置', action: (): void => { this.resetCigarette(); } } as ActionItem,
       { label: '统计', action: (): void => { this.navigateToStatistics(); } } as ActionItem,
       { label: '诱因', action: (): void => { this.navigateToTriggerLogger(); } } as ActionItem,
       { label: '计算器', action: (): void => { this.navigateToMoneyCalculator(); } } as ActionItem,
@@ -419,10 +494,10 @@ struct Index {
                     type: ParticleType.POINT,
                     config: { radius: 1 },
                     count: -1,
-                    lifetime: 12000,
-                    lifetimeRange: 5000
+                    lifetime: 120000,
+                    lifetimeRange: 50000
                   },
-                  emitRate: 50,
+                  emitRate: this.isSmokeFinished ? 0 : 50, // 吸完后暂停粒子
                   position: [this.smokePositionX - 20 , 2000], // 固定发射点，避免因位置变化重置
                   shape: ParticleEmitterShape.CIRCLE,
                   size: [40, 40]
@@ -519,6 +594,7 @@ struct Index {
         .margin({ left: 12, top: 12 })
         .align(Alignment.TopStart)
         .onClick(() => this.simulateSmoking())
+        .translate({ x: -150, y: 0})
     }
     .expandSafeArea()
     .width('100%')

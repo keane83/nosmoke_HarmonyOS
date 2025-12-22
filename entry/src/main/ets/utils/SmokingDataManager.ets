@@ -9,8 +9,9 @@ interface SmokingData {
   todayPuffs: number; // 今日口数
   todayCigarettes: number; // 今日烟数
   todayDate: string; // 今日日期 YYYY-MM-DD
-  weekData: number[]; // 本周每天的数据 [周一, 周二, ..., 周日]
+  weekData: number[]; // 本周每天的虚拟烟根数 [周一, 周二, ..., 周日]
   weekStartDate: string; // 本周开始日期
+  totalCigarettes: number; // 累计虚拟烟总数
 }
 
 interface SmokingTodayData {
@@ -93,6 +94,11 @@ export class SmokingDataManager {
       if (!data.weekData || data.weekData.length !== 7) {
         data.weekData = [0, 0, 0, 0, 0, 0, 0];
       }
+      
+      // 确保累计字段存在（兼容旧数据）
+      if (data.totalCigarettes === undefined || data.totalCigarettes === null) {
+        data.totalCigarettes = 0;
+      }
 
       return data;
     } catch (error) {
@@ -102,7 +108,8 @@ export class SmokingDataManager {
         todayCigarettes: 0,
         todayDate: todayDate,
         weekData: [0, 0, 0, 0, 0, 0, 0],
-        weekStartDate: weekStartDate
+        weekStartDate: weekStartDate,
+        totalCigarettes: 0
       };
     }
   }
@@ -128,15 +135,22 @@ export class SmokingDataManager {
     // 增加口数
     data.todayPuffs += 1;
     
-    // 每3口 = 1根烟
-    data.todayCigarettes = Math.floor(data.todayPuffs / PUFFS_PER_CIGARETTE);
-    
-    // 更新本周数据（按口数统计）
-    const dayOfWeek = SmokingDataManager.getDayOfWeek();
-    data.weekData[dayOfWeek] = data.todayPuffs;
-    
     await SmokingDataManager.saveData(data);
     console.info(`记录吸烟: 今日口数=${data.todayPuffs}, 今日烟数=${data.todayCigarettes}`);
+  }
+
+  // 记录完整吸完一根
+  static async recordCigarette(): Promise<void> {
+    const data = await SmokingDataManager.loadData();
+    data.todayCigarettes = (data.todayCigarettes ?? 0) + 1;
+    data.totalCigarettes = (data.totalCigarettes ?? 0) + 1;
+    
+    // 更新本周数据（按根数统计）
+    const dayOfWeek = SmokingDataManager.getDayOfWeek();
+    data.weekData[dayOfWeek] = data.todayCigarettes;
+    
+    await SmokingDataManager.saveData(data);
+    console.info(`记录整根: 今日烟数=${data.todayCigarettes}, 累计=${data.totalCigarettes}, 今日口数=${data.todayPuffs}`);
   }
 
   // 获取今日数据
@@ -152,6 +166,18 @@ export class SmokingDataManager {
   static async getWeekData(): Promise<number[]> {
     const data = await SmokingDataManager.loadData();
     return data.weekData;
+  }
+  
+  // 获取本周总烟数
+  static async getWeekTotal(): Promise<number> {
+    const data = await SmokingDataManager.loadData();
+    return data.weekData.reduce((sum, count) => sum + count, 0);
+  }
+  
+  // 获取累计总烟数
+  static async getTotalCigarettes(): Promise<number> {
+    const data = await SmokingDataManager.loadData();
+    return data.totalCigarettes ?? 0;
   }
 }
 

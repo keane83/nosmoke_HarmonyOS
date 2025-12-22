@@ -21,6 +21,7 @@ struct Statistics {
       
       const weekData = await SmokingDataManager.getWeekData();
       this.weekData = weekData;
+      console.error('统计数据：' + this.todayCigarettes + "  " + this.todayPuffs)
     } catch (error) {
       console.error('加载统计数据失败: ' + JSON.stringify(error));
       // 使用默认值
@@ -81,7 +82,7 @@ struct Statistics {
 
       // 本周趋势图
       Column() {
-        Text('本周趋势')
+        Text('本周虚拟烟趋势（根数）')
           .fontSize(20)
           .fontWeight(FontWeight.Medium)
           .fontColor('#333')
@@ -121,8 +122,8 @@ struct Statistics {
     }
     .width('100%')
     .height('100%')
+    .expandSafeArea()
     .backgroundColor('#F5F5F5')
-    .padding(20)
   }
 }
 
