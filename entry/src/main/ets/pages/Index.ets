@@ -9,6 +9,11 @@ interface Vector3 {
   z: number;
 }
 
+interface ActionItem {
+  label: string;
+  action: () => void;
+}
+
 @Entry
 @Component
 struct Index {
@@ -20,6 +25,12 @@ struct Index {
   @State disturbanceX: number = 0;
   @State cigaretteLength: number = 1.0; // 香烟长度比例，1.0为完整，0.0为完全吸完
   @State smokePositionY: number = 0; // 烟雾发射位置Y坐标（烟头位置）
+  @State actionProgress: number = 0; // 小按钮展开进度 0-1
+  @State bigSpin: number = 0; // 大按钮旋转角度
+  @State miniSpin: number = 0; // 小按钮旋转角度
+  @State isAnimatingActions: boolean = false;
+  private actionAngles: number[] = [0, 18, 36, 54, 72, 90];
+  private actionDistance: number = 200;
   
   private gyroListener?: (data: Vector3) => void;
   private accumulatedTilt: number = 0;
@@ -248,12 +259,120 @@ struct Index {
     });
   }
 
+  // 底部浮动菜单配置
+  private getActionItems(): ActionItem[] {
+    const items: ActionItem[] = [
+      { label: '选烟', action: (): void => { this.navigateToCigaretteSelection(); } } as ActionItem,
+      { label: '统计', action: (): void => { this.navigateToStatistics(); } } as ActionItem,
+      { label: '诱因', action: (): void => { this.navigateToTriggerLogger(); } } as ActionItem,
+      { label: '计算器', action: (): void => { this.navigateToMoneyCalculator(); } } as ActionItem,
+      { label: '成就', action: (): void => { this.navigateToAchievements(); } } as ActionItem,
+      { label: '日记', action: (): void => { this.navigateToDiary(); } } as ActionItem,
+    ];
+    return items;
+  }
+
+  // 切换浮动菜单展开/收起
+  toggleActionMenu(): void {
+    const target = this.actionProgress > 0 ? 0 : 1;
+    this.isAnimatingActions = true;
+    animateTo({
+      duration: 600,
+      curve: Curve.EaseOut
+    }, () => {
+      this.actionProgress = target;
+      // 旋转动画与移动同步
+      this.bigSpin += 360;
+      this.miniSpin += 720; // 小按钮转两圈
+    });
+    // 动画结束后复位状态，便于再次触发
+    setTimeout(() => {
+      this.isAnimatingActions = false;
+    }, 620);
+  }
+
+  // 渲染单个小按钮
+  @Builder
+  renderMiniButton(angleDeg: number, label: string, onClick: () => void): void {
+    Button() {
+      Text(label)
+        .fontSize(12)
+        .fontColor('#333')
+    }
+      .width(48)
+      .height(48)
+      .backgroundColor('#FFFFFF')
+      .borderRadius(24)
+      .shadow({
+        radius: 12,
+        color: 'rgba(0, 0, 0, 0.15)',
+        offsetX: 0,
+        offsetY: 4
+      })
+      .rotate({
+        angle: this.miniSpin,
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({
+        x: -this.actionDistance * this.actionProgress * Math.cos(angleDeg * Math.PI / 180),
+        y: -this.actionDistance * this.actionProgress * Math.sin(angleDeg * Math.PI / 180)
+      })
+      .opacity(this.actionProgress)
+      .margin({ bottom: 12 })
+      .onClick(() => onClick())
+  }
+
+  // 渲染浮动菜单
+  @Builder
+  renderFloatingMenu(): void {
+    Stack({ alignContent: Alignment.BottomEnd }) {
+      // 小按钮
+      ForEach(this.actionAngles, (angle: number, index?: number): void => {
+        this.renderMiniButton(
+          angle,
+          this.getActionItems()[index ?? 0].label,
+          this.getActionItems()[index ?? 0].action
+        );
+      });
+
+      // 大按钮
+      Button() {
+        Image($r('sys.media.ohos_ic_public_add'))
+          .width(28)
+          .height(28)
+          .fillColor('#FFFFFF')
+      }
+        .width(72)
+        .height(72)
+        .backgroundColor('#4CAF50')
+        .borderRadius(36)
+        .shadow({
+          radius: 16,
+          color: 'rgba(0, 0, 0, 0.2)',
+          offsetX: 0,
+          offsetY: 6
+        })
+        .rotate({
+          angle: this.bigSpin,
+          centerX: '50%',
+          centerY: '50%'
+        })
+        .onClick(() => this.toggleActionMenu())
+    }
+      .width('100%')
+      .height('100%')
+      .padding({ right: 24, bottom: 32 })
+      .expandSafeArea()
+  }
+
   build() {
     Stack() {
       // 背景
       Column()
         .width('100%')
         .height('100%')
+        .expandSafeArea()
         .backgroundColor('#F5F5F5')
 
       // 粒子烟雾效果层（浅灰色背景，烟雾颜色调整为深灰色）
@@ -394,6 +513,7 @@ struct Index {
             this.disturbanceX = this.viewWidth / 2;
           }
         })
+        .expandSafeArea()
 
       // 主要内容层
       Column() {
@@ -416,31 +536,16 @@ struct Index {
         .width(80)
         .height(this.viewHeight * 0.6)
         .margin({ top: (this.viewHeight - this.viewHeight * 0.6) / 2 })
-
-        // 底部功能按钮
-        Row() {
-          Button('选烟')
-            .onClick(() => this.navigateToCigaretteSelection())
-          Button('统计')
-            .onClick(() => this.navigateToStatistics())
-          Button('诱因')
-            .onClick(() => this.navigateToTriggerLogger())
-          Button('计算器')
-            .onClick(() => this.navigateToMoneyCalculator())
-          Button('成就')
-            .onClick(() => this.navigateToAchievements())
-          Button('日记')
-            .onClick(() => this.navigateToDiary())
-        }
-        .width('100%')
-        .justifyContent(FlexAlign.SpaceAround)
-        .padding(20)
-        .margin({ bottom: 40 })
       }
       .width('100%')
       .height('100%')
       .justifyContent(FlexAlign.Center)
+      .expandSafeArea()
+
+      // 浮动的圆形菜单
+      this.renderFloatingMenu();
     }
+    .expandSafeArea()
     .width('100%')
     .height('100%')
   }
