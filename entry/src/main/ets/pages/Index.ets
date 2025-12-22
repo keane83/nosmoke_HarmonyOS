@@ -3,10 +3,19 @@ import { router } from '@kit.ArkUI';
 import audio from '@ohos.multimedia.audio';
 import { SmokingDataManager } from '../utils/SmokingDataManager';
 
+
+
 interface Vector3 {
   x: number;
   y: number;
   z: number;
+}
+
+interface CigaretteMetrics {
+  containerHeight: number;
+  tailHeight: number;
+  headHeight: number;
+  containerTop: number;
 }
 
 interface ActionItem {
@@ -25,6 +34,7 @@ struct Index {
   @State disturbanceX: number = 0;
   @State cigaretteLength: number = 1.0; // 香烟长度比例，1.0为完整，0.0为完全吸完
   @State smokePositionY: number = 0; // 烟雾发射位置Y坐标（烟头位置）
+  @State smokePositionX: number = 0; // 烟雾发射位置X坐标（烟头水平居中）
   @State actionProgress: number = 0; // 小按钮展开进度 0-1
   @State bigSpin: number = 0; // 大按钮旋转角度
   @State miniSpin: number = 0; // 小按钮旋转角度
@@ -38,6 +48,29 @@ struct Index {
   private audioCapturer?: audio.AudioCapturer;
   private isCapturing: boolean = false;
   private lastSmokeTime: number = 0;
+
+  // 计算香烟尺寸信息
+  private getCigaretteMetrics(): CigaretteMetrics {
+    const containerHeight = this.viewHeight * 0.6;
+    const tailHeight = containerHeight * 0.2; // 烟蒂固定高度
+    const headHeight = containerHeight - tailHeight; // 烟身高度
+    const containerTop = (this.viewHeight - containerHeight) / 2;
+    return { containerHeight, tailHeight, headHeight, containerTop };
+  }
+
+  // 更新烟雾发射点，确保位于香烟顶部中心
+  private updateSmokePosition(): void {
+    if (this.viewWidth <= 0 || this.viewHeight <= 0) {
+      return;
+    }
+    const metrics = this.getCigaretteMetrics();
+    // 随着吸烟，头部向下移动，发射点跟随
+    this.smokePositionY = metrics.containerTop + (metrics.headHeight * (1 - this.cigaretteLength));
+    this.smokePositionX = this.viewWidth / 2;
+    if (this.disturbanceX === 0) {
+      this.disturbanceX = this.viewWidth / 2;
+    }
+  }
 
   aboutToAppear() {
     this.initMicrophone();
@@ -128,6 +161,7 @@ struct Index {
   async simulateSmoking() {
     // 每次吸烟缩短5%
     this.cigaretteLength = Math.max(0, this.cigaretteLength - 0.05);
+    this.updateSmokePosition();
     
     // 记录吸烟数据到持久化存储
     try {
@@ -367,7 +401,7 @@ struct Index {
   }
 
   build() {
-    Stack() {
+    Stack({ alignContent: Alignment.Center }) {
       // 背景
       Column()
         .width('100%')
@@ -375,178 +409,124 @@ struct Index {
         .expandSafeArea()
         .backgroundColor('#F5F5F5')
 
-      // 粒子烟雾效果层（浅灰色背景，烟雾颜色调整为深灰色）
-      Particle({
-        particles: [
-          {
-            emitter: {
-              particle: {
-                type: ParticleType.POINT,
-                config: {
-                  radius: 1
+      // 粒子烟雾效果层：发射器固定原点，外层 Stack 平移到烟头，避免重置
+      Stack(){
+          Particle({
+            particles: [
+              {
+                emitter: {
+                  particle: {
+                    type: ParticleType.POINT,
+                    config: { radius: 1 },
+                    count: -1,
+                    lifetime: 12000,
+                    lifetimeRange: 5000
+                  },
+                  emitRate: 50,
+                  position: [this.smokePositionX - 20 , 2000], // 固定发射点，避免因位置变化重置
+                  shape: ParticleEmitterShape.CIRCLE,
+                  size: [40, 40]
                 },
-                count: -1,
-                lifetime: 12000,
-                lifetimeRange: 5000
-              },
-              emitRate: 50,
-              position: [this.viewWidth / 2, this.smokePositionY], // 从烟头位置发射
-              shape: ParticleEmitterShape.CIRCLE,
-              size: [40, 40]
-            },
-            color: {
-              range: ['#666666', '#888888'] // 深灰色烟雾，在浅色背景上可见
-            },
-            opacity: {
-              range: [0.3, 0.5],
-              updater: {
-                type: ParticleUpdater.CURVE,
-                config: [
-                  {
-                    from: 0.4,
-                    to: 0.5,
-                    startMillis: 0,
-                    endMillis: 4000,
-                    curve: Curve.EaseOut
-                  },
-                  {
-                    from: 0.5,
-                    to: 0.3,
-                    startMillis: 4000,
-                    endMillis: 8000,
-                    curve: Curve.Linear
-                  },
-                  {
-                    from: 0.3,
-                    to: 0.1,
-                    startMillis: 8000,
-                    endMillis: 12000,
-                    curve: Curve.EaseIn
-                  },
-                  {
-                    from: 0.1,
-                    to: 0.0,
-                    startMillis: 12000,
-                    endMillis: 16000,
-                    curve: Curve.EaseIn
+                color: { range: ['#666666', '#888888'] },
+                opacity: {
+                  range: [0.3, 0.5],
+                  updater: {
+                    type: ParticleUpdater.CURVE,
+                    config: [
+                      { from: 0.4, to: 0.5, startMillis: 0, endMillis: 4000, curve: Curve.EaseOut },
+                      { from: 0.5, to: 0.3, startMillis: 4000, endMillis: 8000, curve: Curve.Linear },
+                      { from: 0.3, to: 0.1, startMillis: 8000, endMillis: 12000, curve: Curve.EaseIn },
+                      { from: 0.1, to: 0.0, startMillis: 12000, endMillis: 16000, curve: Curve.EaseIn }
+                    ]
                   }
-                ]
-              }
-            },
-            scale: {
-              range: [0.6, 1.0],
-              updater: {
-                type: ParticleUpdater.CURVE,
-                config: [
-                  {
-                    from: 0.6,
-                    to: 2.0,
-                    startMillis: 0,
-                    endMillis: 5000,
-                    curve: Curve.EaseOut
-                  },
-                  {
-                    from: 2.0,
-                    to: 2.8,
-                    startMillis: 5000,
-                    endMillis: 8000,
-                    curve: Curve.EaseOut
-                  },
-                  {
-                    from: 2.8,
-                    to: 2.0,
-                    startMillis: 8000,
-                    endMillis: 12000,
-                    curve: Curve.EaseIn
+                },
+                scale: {
+                  range: [0.6, 1.0],
+                  updater: {
+                    type: ParticleUpdater.CURVE,
+                    config: [
+                      { from: 0.6, to: 2.0, startMillis: 0, endMillis: 5000, curve: Curve.EaseOut },
+                      { from: 2.0, to: 2.8, startMillis: 5000, endMillis: 8000, curve: Curve.EaseOut },
+                      { from: 2.8, to: 2.0, startMillis: 8000, endMillis: 12000, curve: Curve.EaseIn }
+                    ]
                   }
-                ]
+                },
+                acceleration: {
+                  speed: { range: [0.2, 1.0], updater: { type: ParticleUpdater.RANDOM, config: [0.1, 1.5] } },
+                  angle: { range: this.smokeAngleRange }
+                },
+                spin: { range: [-1.5, 1.5], updater: { type: ParticleUpdater.RANDOM, config: [-2.0, 2.0] } },
+                velocity: { speed: [80, 150], angle: this.smokeAngleRange }
               }
-            },
-            acceleration: {
-              speed: {
-                range: [0.2, 1.0],
-                updater: {
-                  type: ParticleUpdater.RANDOM,
-                  config: [0.1, 1.5]
-                }
-              },
-              angle: {
-                range: this.smokeAngleRange
-              }
-            },
-            spin: {
-              range: [-1.5, 1.5],
-              updater: {
-                type: ParticleUpdater.RANDOM,
-                config: [-2.0, 2.0]
-              }
-            },
-            velocity: {
-              speed: [80, 150],
-              angle: this.smokeAngleRange
-            }
-          }
-        ]
-      })
-        .width('100%')
-        .height('100%')
-        .backgroundColor('#F5F5F5') // 粒子效果层也使用浅灰色背景
-        .disturbanceFields([{
-          strength: 50,
-          shape: DisturbanceFieldShape.CIRCLE,
-          size: { width: this.viewWidth, height: this.viewHeight },
-          position: { 
-            x: this.viewWidth > 0 ? this.disturbanceX : this.viewWidth / 2, 
-            y: this.viewHeight / 2 
-          }
-        }])
-        .onAreaChange((oldValue: Area, newValue: Area) => {
-          this.viewWidth = newValue.width as number;
-          this.viewHeight = newValue.height as number;
-          // 计算烟头位置：假设烟图片在屏幕中央，烟头在顶部
-          // 根据香烟长度调整烟头位置
-          const cigaretteImageHeight = this.viewHeight * 0.6; // 假设烟图片高度为屏幕的60%
-          const cigaretteTop = (this.viewHeight - cigaretteImageHeight) / 2;
-          this.smokePositionY = cigaretteTop + (cigaretteImageHeight * (1 - this.cigaretteLength));
-          
-          if (this.disturbanceX === 0 && this.viewWidth > 0) {
-            this.disturbanceX = this.viewWidth / 2;
-          }
-        })
-        .expandSafeArea()
+            ]
+          })
+            .width("100%")
+            .height(2000)
+            .backgroundColor('#F5F5F5')
+            .align(Alignment.TopStart)
+            .clip(false)
+            .expandSafeArea()
+        }
+      .width('100%')
+      .height('100%')
+      .align(Alignment.TopStart)
+      .clip(false)
+      .translate({ x: 0, y: this.smokePositionY -2000 })
 
       // 主要内容层
       Column() {
-        // 烟图片容器
-        Stack() {
-          // 完整的烟图片（作为背景）
-          Image($r('app.media.smoke'))
-            .width(80)
-            .height(this.viewHeight * 0.6)
-            .objectFit(ImageFit.Contain)
-            .opacity(0.3) // 半透明显示完整烟
-          
-          // 根据长度显示的烟图片
-          Image($r('app.media.smoke'))
-            .width(80)
-            .height(this.viewHeight * 0.6 * this.cigaretteLength)
-            .objectFit(ImageFit.Contain)
-            .align(Alignment.Top)
-        }
-        .width(80)
-        .height(this.viewHeight * 0.6)
-        .margin({ top: (this.viewHeight - this.viewHeight * 0.6) / 2 })
+        // 烟图片容器：上部 head 可下移，底部 tail 固定
+          // 烟头（head），保持尺寸不缩放，只向下平移
+          Image($r('app.media.smoke_head'))
+            .width(60)
+            // .height(this.getCigaretteMetrics().headHeight)
+            // .objectFit(ImageFit.Contain)
+            .translate({
+              x: 0,
+              y: this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength) // 吸烟时向下移动
+            })
+            // .expandSafeArea()
+
+
+          // 烟蒂（tail），固定在底部
+          Image($r('app.media.smoke_tail'))
+            .width(60)
+            // .height(this.getCigaretteMetrics().tailHeight)
+            // .objectFit(ImageFit.Contain)
+            // .align(Alignment.Bottom)
+            .expandSafeArea()
+
       }
       .width('100%')
       .height('100%')
-      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .justifyContent(FlexAlign.End)
       .expandSafeArea()
+      // .backgroundColor(Color.Yellow)
+      .clip(true)
 
       // 浮动的圆形菜单
       this.renderFloatingMenu();
+
+      // 调试用：手动模拟吸烟按钮（不遮挡主要内容，左上角）
+      Button('模拟吸一口')
+        .width(110)
+        .height(40)
+        .fontSize(12)
+        .backgroundColor('#EEEEEE')
+        .fontColor('#333333')
+        .borderRadius(8)
+        .margin({ left: 12, top: 12 })
+        .align(Alignment.TopStart)
+        .onClick(() => this.simulateSmoking())
     }
     .expandSafeArea()
     .width('100%')
     .height('100%')
+    .onAreaChange((oldValue: Area, newValue: Area) => {
+      this.viewWidth = newValue.width as number;
+      this.viewHeight = newValue.height as number;
+      this.updateSmokePosition();
+    })
   }
 }
