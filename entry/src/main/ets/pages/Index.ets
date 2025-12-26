@@ -548,36 +548,55 @@ struct Index {
       .clip(false)
       .translate({ x: 0, y: this.smokePositionY -2000 })
 
-      // 主要内容层
+      // 主要内容层：三部分香烟的组合显示
       Column() {
-        // 烟图片容器：上部 head 可下移，底部 tail 固定
-          // 烟头（head），保持尺寸不缩放，只向下平移
+        // 使用 Stack 来实现烟头和烟中间的重叠与裁剪
+        Stack({ alignContent: Alignment.Top }) {
+          // 烟中间（middle）- 图片向上偏移，容器从烟头位置开始显示
+          Column() {
+            Image($r('app.media.smoke_middle'))
+              .width(60)
+              .height(this.getCigaretteMetrics().headHeight) // 烟中间图片高度
+              .objectFit(ImageFit.Fill)
+              .translate({
+                x: 0,
+                // 向上偏移，使得容器顶部正好对应烟中间图片被烟头遮挡的位置
+                y: -this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength)
+              })
+          }
+          .width(60)
+          // 容器高度：只显示烟头以下的部分
+          .height(this.getCigaretteMetrics().headHeight * this.cigaretteLength)
+          .clip(true) // 裁剪超出容器的部分（即烟中间上部）
+          .translate({
+            x: 0,
+            // 容器位置跟随烟头下移
+            y: this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength)
+          })
+          .zIndex(1)
+          
+          // 烟头（head）- 向下移动
           Image($r('app.media.smoke_head'))
             .width(60)
-            // .height(this.getCigaretteMetrics().headHeight)
-            // .objectFit(ImageFit.Contain)
             .translate({
               x: 0,
-              y: this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength) // 吸烟时向下移动
+              y: this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength)
             })
-            // .expandSafeArea()
-
-
-          // 烟蒂（tail），固定在底部
-          Image($r('app.media.smoke_tail'))
-            .width(60)
-            // .height(this.getCigaretteMetrics().tailHeight)
-            // .objectFit(ImageFit.Contain)
-            // .align(Alignment.Bottom)
-            .expandSafeArea()
-
+            .zIndex(2) // 烟头在烟中间上面
+        }
+        .width(60)
+        .height(this.getCigaretteMetrics().headHeight)
+        
+        // 烟蒂（tail）- 固定在底部
+        Image($r('app.media.smoke_tail'))
+          .width(60)
+          .expandSafeArea()
       }
       .width('100%')
       .height('100%')
       .alignItems(HorizontalAlign.Center)
       .justifyContent(FlexAlign.End)
       .expandSafeArea()
-      // .backgroundColor(Color.Yellow)
       .clip(true)
 
       // 浮动的圆形菜单
