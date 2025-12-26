@@ -44,7 +44,7 @@ struct Achievements {
     {
       id: '3',
       name: '一周坚持',
-      description: '连续 7 天都有虚拟烟记录',
+      description: '连续 7 天虚拟烟记录',
       unlocked: false,
       icon: '🏆'
     },
@@ -54,6 +54,42 @@ struct Achievements {
       description: '连续 3 天记录诱因',
       unlocked: false,
       icon: '📝'
+    },
+    {
+      id: '5',
+      name: '口数达人',
+      description: '单日口数达 50',
+      unlocked: false,
+      icon: '🔥',
+      progress: 0,
+      target: 50
+    },
+    {
+      id: '6',
+      name: '累计口数',
+      description: '累计口数到 200',
+      unlocked: false,
+      icon: '📊',
+      progress: 0,
+      target: 200
+    },
+    {
+      id: '7',
+      name: '诱因分析',
+      description: '记录诱因数达 10 次',
+      unlocked: false,
+      icon: '🔍',
+      progress: 0,
+      target: 10
+    },
+    {
+      id: '8',
+      name: '数据达人',
+      description: '累计天数达 7 天',
+      unlocked: false,
+      icon: '📈',
+      progress: 0,
+      target: 7
     }
   ];
 
@@ -201,10 +237,51 @@ struct Achievements {
         achievement4.unlocked = triggerStreak;
       }
 
+      // 5. 口数达人：单日口数达到50口
+      const allRecords = await SmokingDataManager.getAllRecords();
+      let maxDailyPuffs = 0;
+      allRecords.forEach(record => {
+        if (record.puffs > maxDailyPuffs) {
+          maxDailyPuffs = record.puffs;
+        }
+      });
+      const achievement5 = this.achievements.find(a => a.id === '5');
+      if (achievement5) {
+        achievement5.progress = maxDailyPuffs;
+        achievement5.unlocked = maxDailyPuffs >= 50;
+      }
+
+      // 6. 累计口数：累计口数达到200口
+      let totalPuffs = 0;
+      allRecords.forEach(record => {
+        totalPuffs += record.puffs;
+      });
+      const achievement6 = this.achievements.find(a => a.id === '6');
+      if (achievement6) {
+        achievement6.progress = totalPuffs;
+        achievement6.unlocked = totalPuffs >= 200;
+      }
+
+      // 7. 诱因分析：记录诱因总数达到10次
+      const triggerRecords = await TriggerDataManager.getAllRecords();
+      const achievement7 = this.achievements.find(a => a.id === '7');
+      if (achievement7) {
+        achievement7.progress = triggerRecords.length;
+        achievement7.unlocked = triggerRecords.length >= 10;
+      }
+
+      // 8. 数据达人：累计记录天数达到7天
+      const recordDays = allRecords.length;
+      const achievement8 = this.achievements.find(a => a.id === '8');
+      if (achievement8) {
+        achievement8.progress = recordDays;
+        achievement8.unlocked = recordDays >= 7;
+      }
+
       // 更新状态以触发UI刷新
       this.achievements = [...this.achievements];
       
-      console.info(`成就检查完成: 虚拟吸烟者=${achievement1?.unlocked}, 省钱达人=${achievement2?.unlocked}, 一周坚持=${achievement3?.unlocked}, 记录习惯=${achievement4?.unlocked}`);
+      console.info(`成就检查完成: 虚拟吸烟者=${achievement1?.unlocked}, 省钱达人=${achievement2?.unlocked}, 一周坚持=${achievement3?.unlocked}, 记录习惯=${achievement4?.unlocked}, 口数达人=${achievement5?.unlocked}, 累计口数=${achievement6?.unlocked}, 诱因分析=${achievement7?.unlocked}, 数据达人=${achievement8?.unlocked}`);
     } catch (error) {
       console.error('检查成就失败: ' + JSON.stringify(error));
     }
@@ -298,7 +375,7 @@ struct Achievements {
         })
       }
       .columnsTemplate('1fr 1fr')
-      .rowsTemplate('1fr 1fr')
+      .rowsTemplate('1fr 1fr 1fr 1fr')
       .columnsGap(15)
       .rowsGap(15)
       .width('90%')

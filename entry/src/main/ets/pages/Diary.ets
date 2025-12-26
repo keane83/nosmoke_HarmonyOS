@@ -88,11 +88,17 @@ struct Diary {
         // 顶部导航栏
         Row() {
           // 返回按钮
-          Text('<')
-            .fontSize(24)
-            .fontColor('#333')
-            .fontWeight(FontWeight.Bold)
-            .onClick(() => router.back())
+          Button() {
+            Image($r('sys.media.ohos_ic_back'))
+              .width(20)
+              .height(20)
+          }
+          .width(40)
+          .height(40)
+          .backgroundColor(Color.White)
+          .onClick(() => {
+            router.back();
+          })
           
           Blank()
           
@@ -116,6 +122,7 @@ struct Diary {
           .margin({ top: 10, bottom: 20 })
       }
       .width('100%')
+      .expandSafeArea()
       .backgroundColor('#FFD700')
       .padding({ top: 20 })
 
@@ -123,7 +130,7 @@ struct Diary {
       if (this.showInput) {
         // 输入区域
         Column() {
-          Text('简单模式, 添加内容...')
+          Text('快来添加日记吧...')
             .fontSize(14)
             .fontColor('#666')
             .width('100%')
@@ -162,7 +169,7 @@ struct Diary {
         .padding(16)
         .backgroundColor('#F5F5F5')
       } else {
-        Text('简单模式, 添加内容...')
+        Text('快来添加日记吧...')
           .fontSize(14)
           .fontColor('#999')
           .width('100%')
@@ -175,43 +182,20 @@ struct Diary {
           ForEach(this.getGroupedEntries(), (group: GroupedEntry) => {
             ListItem() {
               Row() {
-                // 左侧：日期和时间线
-                Stack() {
-                  // 时间线（垂直线条）
-                  Column()
-                    .width(2)
-                    .height('100%')
-                    .backgroundColor('#E0E0E0')
-                    .margin({ left: 7 })
-                  
-                  // 日期和圆点
-                  Column() {
-                    Text(group.date)
-                      .fontSize(14)
-                      .fontColor('#666')
-                      .margin({ bottom: 8 })
-                    
-                    // 时间线圆点
-                    ForEach(group.entries, (entry: DiaryEntry, index: number) => {
-                      Circle({ width: 16, height: 16 })
-                        .fill('#4A90E2')
-                        .margin({ bottom: index < group.entries.length - 1 ? 40 : 0 })
-                    })
-                  }
-                  .width('100%')
-                  .alignItems(HorizontalAlign.Start)
-                }
-                .width(60)
-                .padding({ left: 16, top: 8 })
-
                 // 右侧：日记条目
                 Column() {
                   ForEach(group.entries, (entry: DiaryEntry) => {
                     Column() {
                       Row() {
+
+                        Text(group.date)
+                          .fontSize(12)
+                          .fontColor('#999')
+
                         Text(this.formatTime(entry.timestamp))
                           .fontSize(12)
                           .fontColor('#999')
+
                         Blank()
                       }
                       .width('100%')
@@ -232,7 +216,7 @@ struct Diary {
                   })
                 }
                 .layoutWeight(1)
-                .padding({ right: 16 })
+                .padding({left:16 ,right: 16 })
               }
               .width('100%')
             }
@@ -251,6 +235,7 @@ struct Diary {
         .justifyContent(FlexAlign.Center)
       }
     }
+    .expandSafeArea()
     .width('100%')
     .height('100%')
     .backgroundColor('#F5F5F5')
