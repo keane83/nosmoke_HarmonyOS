@@ -60,7 +60,7 @@ struct Index {
 
   private microphoneManager: MicrophoneManager = MicrophoneManager.getInstance();
   private checkTimer: number = -1;
-  private isSmorking: boolean = false;
+  @State isSmorking: boolean = false;
 
   // 计算香烟尺寸信息
   private getCigaretteMetrics(): CigaretteMetrics {
@@ -414,6 +414,13 @@ struct Index {
     });
   }
 
+  // 跳转到使用说明
+  navigateToHowToUse() {
+    router.pushUrl({
+      url: 'pages/HowToUse'
+    });
+  }
+
   // 底部浮动菜单配置
   private getActionItems(): ActionItem[] {
     const items: ActionItem[] = [
@@ -623,14 +630,37 @@ struct Index {
           .zIndex(1)
           
           // 烟头（head）- 向下移动
-          Image($r('app.media.smoke_head'))
-            .width(60)
-            .objectFit(ImageFit.Fill)
-            .translate({
-              x: 0,
-              y: this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength) - 50
-            })
-            .zIndex(2) // 烟头在烟中间上面
+          Stack() {
+
+            Image($r('app.media.smoke_head'))
+              .width(60)
+              .objectFit(ImageFit.Fill)
+              // .translate({
+              //   x: 0,
+              //   y: this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength) - 50
+              // })
+              //.zIndex(2) // 烟头在烟中间上面
+
+            if (this.isSmorking) {
+              Image($r('app.media.fire1'))
+                .width(60)
+                .objectFit(ImageFit.Fill)
+                .translate({
+                  x: 0,
+                  y: -10
+                })
+            }
+
+            // Text("123123")
+
+          }
+          .width(60)
+          .translate({
+            x: 0,
+            y: this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength) - 50
+          })
+          .zIndex(2) // 烟头在烟中间上面
+
         }
         .width(60)
         .height(this.getCigaretteMetrics().headHeight)
@@ -651,18 +681,42 @@ struct Index {
       // 浮动的圆形菜单
       this.renderFloatingMenu();
 
+      // 右上角问号按钮
+      Button() {
+        Image($r('app.media.question'))
+          .width(44)
+          .height(44)
+          // .fillColor(Color.Red)
+          // .fillColor('#666')
+      }
+      .width(44)
+      .height(44)
+      .backgroundColor(Color.Transparent)
+      .borderRadius(22)
+      .shadow({
+        radius: 4,
+        color: 'rgba(0, 0, 0, 0.1)',
+        offsetX: 0,
+        offsetY: 2
+      })
+      .align(Alignment.TopEnd)
+      .margin({ left: '80%', bottom:'180%' })
+      .onClick(() => {
+        this.navigateToHowToUse();
+      })
+
       // 调试用：手动模拟吸烟按钮（不遮挡主要内容，左上角）
-      Button('模拟吸一口')
-        .width(110)
-        .height(40)
-        .fontSize(12)
-        .backgroundColor('#EEEEEE')
-        .fontColor('#333333')
-        .borderRadius(8)
-        .margin({ left: 12, top: 12 })
-        .align(Alignment.TopStart)
-        .onClick(() => this.simulateSmoking())
-        .translate({ x: -150, y: 0})
+      // Button('模拟吸一口')
+      //   .width(110)
+      //   .height(40)
+      //   .fontSize(12)
+      //   .backgroundColor('#EEEEEE')
+      //   .fontColor('#333333')
+      //   .borderRadius(8)
+      //   .margin({ left: 12, top: 12 })
+      //   .align(Alignment.TopStart)
+      //   .onClick(() => this.simulateSmoking())
+      //   .translate({ x: -150, y: 0})
     }
     .expandSafeArea()
     .width('100%')
