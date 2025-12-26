@@ -2,6 +2,7 @@ import { router } from '@kit.ArkUI';
 import { SmokingDataManager } from '../utils/SmokingDataManager';
 import { preferences } from '@kit.ArkData';
 import { AppContext } from '../utils/AppContext';
+import { promptAction } from '@kit.ArkUI';
 
 @Entry
 @Component
@@ -23,42 +24,81 @@ struct MoneyCalculator {
     return parseInt(this.packSizeText) || 20;
   }
 
-  aboutToAppear() {
-    this.loadSettings();
-    this.loadCigaretteData();
+  async aboutToAppear() {
+    console.info('MoneyCalculator aboutToAppear 开始');
+    await this.loadSettings();
+    await this.loadCigaretteData();
+    console.info('MoneyCalculator 初始化完成');
   }
 
   async loadSettings() {
     try {
       const context = AppContext.getContext();
       if (!context) {
-        console.error('Context未设置');
+        console.error('Context未设置，无法加载价格设置');
+        promptAction.showToast({
+          message: 'Context未初始化',
+          duration: 2000
+        });
         return;
       }
       
+      // 初始化 dataStore
       this.dataStore = await preferences.getPreferences(context, 'price_settings');
+      console.info('dataStore初始化成功');
+      
+      // 加载保存的设置
       const savedPrice = await this.dataStore.get('pack_price', 20) as number;
       const savedSize = await this.dataStore.get('pack_size', 20) as number;
       this.packPriceText = savedPrice.toString();
       this.packSizeText = savedSize.toString();
+      
+      console.info(`加载价格设置: 一包¥${savedPrice}, ${savedSize}根`);
     } catch (error) {
       console.error('加载价格设置失败: ' + JSON.stringify(error));
+      // 即使加载失败，也使用默认值
+      this.packPriceText = '20';
+      this.packSizeText = '20';
     }
   }
   
-  async saveSettings() {
+  // 保存设置并重新计算
+  async saveAndRefresh() {
+    if (!this.dataStore) {
+      console.error('dataStore未初始化，无法保存');
+      promptAction.showToast({
+        message: '保存失败: 数据存储未初始化',
+        duration: 2000
+      });
+      return;
+    }
+    
     try {
-      if (!this.dataStore) {
-        const context = AppContext.getContext();
-        if (!context) return;
-        this.dataStore = await preferences.getPreferences(context, 'price_settings');
-      }
-      
-      await this.dataStore.put('pack_price', this.packPrice);
-      await this.dataStore.put('pack_size', this.packSize);
+
+      let packPrice = parseFloat(this.packPriceText)
+
+      let packSize = parseFloat(this.packSizeText) || 20;
+
+      // 保存价格和根数设置
+      await this.dataStore.put('pack_price', packPrice);
+      await this.dataStore.put('pack_size', packSize);
       await this.dataStore.flush();
+      
+      console.info(`价格设置已保存: 一包¥${packPrice}, ${packSize}根`);
+      
+      // 重新加载虚拟烟数据并计算
+      await this.loadCigaretteData();
+      
+      promptAction.showToast({
+        message: '保存成功，已重新计算',
+        duration: 1500
+      });
     } catch (error) {
       console.error('保存价格设置失败: ' + JSON.stringify(error));
+      promptAction.showToast({
+        message: '保存失败',
+        duration: 2000
+      });
     }
   }
 
@@ -78,8 +118,10 @@ struct MoneyCalculator {
 
   // 计算每根烟的价格
   getPricePerCigarette(): number {
-    if (this.packSize === 0) return 0;
-    return this.packPrice / this.packSize;
+    let price = parseFloat(this.packPriceText) || 20
+    let size = parseInt(this.packSizeText) || 20;
+    if (size === 0) return 0;
+    return price / size;
   }
 
   // 计算今天节省金额
@@ -99,23 +141,36 @@ struct MoneyCalculator {
 
   build() {
     Column() {
+      // 顶部标题栏，带关闭按钮
       Row() {
+        Button() {
+          Image($r('sys.media.ohos_ic_back'))
+            .width(20)
+            .height(20)
+            .fillColor('#333')
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(Color.White)
+        .onClick(() => {
+          router.back();
+        })
+
         Text('戒烟金钱计算器')
           .fontSize(24)
           .fontWeight(FontWeight.Bold)
           .fontColor('#333')
-        
-        Blank()
-        
-        Button('刷新')
-          .fontSize(14)
-          .type(ButtonType.Normal)
-          .onClick(() => {
-            this.loadCigaretteData();
-          })
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+
+        // 占位，保持标题居中
+        Column()
+          .width(40)
+          .height(40)
       }
-      .width('90%')
-      .margin({ top: 20, bottom: 30 })
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 20 })
+      .margin({ bottom: 30 })
 
       // 香烟价格设置
       Column() {
@@ -136,7 +191,6 @@ struct MoneyCalculator {
             .backgroundColor('#F5F5F5')
             .onChange((value: string) => {
               this.packPriceText = value;
-              this.saveSettings();
             })
         }
         .width('100%')
@@ -153,7 +207,6 @@ struct MoneyCalculator {
             .backgroundColor('#F5F5F5')
             .onChange((value: string) => {
               this.packSizeText = value;
-              this.saveSettings();
             })
         }
         .width('100%')
@@ -170,6 +223,20 @@ struct MoneyCalculator {
             .width('60%')
         }
         .width('100%')
+        .margin({ bottom: 20 })
+
+        // 刷新按钮
+        Button('刷新并保存')
+          .width('100%')
+          .height(45)
+          .fontSize(16)
+          .fontWeight(FontWeight.Medium)
+          .backgroundColor('#4CAF50')
+          .fontColor('#FFFFFF')
+          .borderRadius(8)
+          .onClick(() => {
+            this.saveAndRefresh();
+          })
       }
       .width('90%')
       .padding(20)
@@ -193,7 +260,7 @@ struct MoneyCalculator {
               .fontColor('#666')
               .margin({ bottom: 5 })
             Text('¥' + this.getTodaySaved().toFixed(2))
-              .fontSize(24)
+              .fontSize(16)
               .fontWeight(FontWeight.Bold)
               .fontColor('#4CAF50')
             Text(`${this.todayCigarettes}根`)
@@ -209,7 +276,7 @@ struct MoneyCalculator {
               .fontColor('#666')
               .margin({ bottom: 5 })
             Text('¥' + this.getWeekSaved().toFixed(2))
-              .fontSize(24)
+              .fontSize(16)
               .fontWeight(FontWeight.Bold)
               .fontColor('#4CAF50')
             Text(`${this.weekCigarettes}根`)
@@ -225,7 +292,7 @@ struct MoneyCalculator {
               .fontColor('#666')
               .margin({ bottom: 5 })
             Text('¥' + this.getTotalSaved().toFixed(2))
-              .fontSize(24)
+              .fontSize(16)
               .fontWeight(FontWeight.Bold)
               .fontColor('#4CAF50')
             Text(`${this.totalCigarettes}根`)

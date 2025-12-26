@@ -40,6 +40,7 @@ struct Index {
   @State miniSpin: number = 0; // 小按钮旋转角度
   @State isAnimatingActions: boolean = false;
   @State isSmokeFinished: boolean = false; // 是否已经吸完（用于暂停粒子）
+  @State smokeOpacity: number = 1.0; // 烟雾透明度，吸烟时降低来模拟烟被吸入
   private actionAngles: number[] = [0, 18, 36, 54, 72, 90]; // 六个按钮，间隔18度
   private actionDistance: number = 200;
   
@@ -51,6 +52,7 @@ struct Index {
   private lastSmokeTime: number = 0;
   private autoSmokeTimer?: number; // 5s 自动灼烧定时器
   private finishThreshold: number = 0.08; // 认为接近烟蒂的阈值（8%）
+  private smokeRecoveryTimer?: number; // 吸烟后烟雾恢复的定时器
 
   // 计算香烟尺寸信息
   private getCigaretteMetrics(): CigaretteMetrics {
@@ -195,6 +197,24 @@ struct Index {
       console.error('记录吸烟数据失败: ' + JSON.stringify(error));
     }
 
+    // 吸烟时降低烟雾透明度，模拟烟被吸入（不改变emitRate，避免粒子系统重置）
+    animateTo({ duration: 200, curve: Curve.EaseOut }, () => {
+      this.smokeOpacity = 0.15; // 降低到15%透明度
+    });
+    
+    // 清除之前的恢复定时器（如果存在）
+    if (this.smokeRecoveryTimer !== undefined) {
+      clearTimeout(this.smokeRecoveryTimer);
+    }
+    
+    // 3秒后恢复正常烟雾透明度
+    this.smokeRecoveryTimer = setTimeout(() => {
+      animateTo({ duration: 800, curve: Curve.EaseIn }, () => {
+        this.smokeOpacity = 1.0; // 恢复到100%
+      });
+      this.smokeRecoveryTimer = undefined;
+    }, 3000);
+
     this.shrinkCigarette(0.05, 400);
   }
 
@@ -315,7 +335,12 @@ struct Index {
       }
     }
 
+    // 清除定时器
     this.stopAutoBurn();
+    if (this.smokeRecoveryTimer !== undefined) {
+      clearTimeout(this.smokeRecoveryTimer);
+      this.smokeRecoveryTimer = undefined;
+    }
   }
 
   // 跳转到选烟界面
@@ -357,6 +382,14 @@ struct Index {
   resetCigarette() {
     this.isSmokeFinished = false;
     this.cigaretteLength = 1.0;
+    this.smokeOpacity = 1.0; // 恢复正常烟雾透明度
+    
+    // 清除烟雾恢复定时器
+    if (this.smokeRecoveryTimer !== undefined) {
+      clearTimeout(this.smokeRecoveryTimer);
+      this.smokeRecoveryTimer = undefined;
+    }
+    
     this.updateSmokePosition();
     this.startAutoBurn();
   }
@@ -547,6 +580,7 @@ struct Index {
       .align(Alignment.TopStart)
       .clip(false)
       .translate({ x: 0, y: this.smokePositionY -2000 })
+      .opacity(this.smokeOpacity) // 通过透明度控制烟雾可见度，避免改emitRate导致粒子系统重置
 
       // 主要内容层：三部分香烟的组合显示
       Column() {

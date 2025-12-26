@@ -3,6 +3,7 @@
     "pages/Index",
     "pages/CigaretteSelection",
     "pages/Statistics",
+    "pages/SmokingHistory",
     "pages/TriggerLogger",
     "pages/MoneyCalculator",
     "pages/Achievements",

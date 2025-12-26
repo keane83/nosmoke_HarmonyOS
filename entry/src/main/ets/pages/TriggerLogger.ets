@@ -75,19 +75,44 @@ struct TriggerLogger {
 
   build() {
     Column() {
+
+      Row() {
+        Button() {
+          Image($r('sys.media.ohos_ic_back'))
+            .width(20)
+            .height(20)
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(Color.White)
+        .onClick(() => {
+          router.back();
+        })
+
+        Text('诱因')
+          .fontSize(24)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#333')
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+
+        // 占位，保持标题居中
+        Column()
+          .width(40)
+          .height(40)
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 20 })
+      .backgroundColor("#F5F5F5")
+      .expandSafeArea()
+
       if (!this.showRecords) {
         // 选择诱因界面
         Column() {
-          Text('本次吸烟诱因')
-            .fontSize(24)
-            .fontWeight(FontWeight.Bold)
-            .fontColor('#333')
-            .margin({ top: 40, bottom: 40 })
-
           Text('你为什么想吸烟？')
             .fontSize(18)
             .fontColor('#666')
-            .margin({ bottom: 40 })
+            .margin({ top: 30, bottom: 40 })
 
           ForEach(this.triggerOptions, (trigger: string) => {
             Button(trigger)
@@ -112,7 +137,7 @@ struct TriggerLogger {
             })
         }
         .width('100%')
-        .height('100%')
+        // .height('100%')
         .expandSafeArea()
         .backgroundColor('#F5F5F5')
         .justifyContent(FlexAlign.Center)
@@ -120,14 +145,11 @@ struct TriggerLogger {
         // 查看记录界面
         Column() {
           Row() {
-            Button('返回')
-              .fontSize(16)
-              .onClick(() => {
-                this.showRecords = false;
-              })
             
+            Blank().width(80)
+
             Blank()
-            
+
             Text('诱因记录')
               .fontSize(20)
               .fontWeight(FontWeight.Bold)
@@ -135,9 +157,14 @@ struct TriggerLogger {
             
             Blank()
             
-            // 占位保持居中
-            Text('')
-              .width(60)
+            Button('选诱因')
+              .fontSize(16)
+              .type(ButtonType.Normal)
+              .onClick(() => {
+                this.showRecords = false;
+              })
+              .borderRadius(10)
+              .width(80)
           }
           .width('100%')
           .padding({ left: 20, right: 20, top: 20, bottom: 10 })
@@ -217,14 +244,15 @@ struct TriggerLogger {
           }
         }
         .width('100%')
-        .height('100%')
-        .expandSafeArea()
+        // .height('100%')
+        // .expandSafeArea()
         .backgroundColor('#F5F5F5')
       }
     }
     .expandSafeArea()
     .width('100%')
     .height('100%')
+    .backgroundColor('#F5F5F5')
   }
 }
 

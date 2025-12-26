@@ -2,19 +2,21 @@ import { preferences } from '@kit.ArkData';
 import { AppContext } from './AppContext';
 
 const PREF_KEY = 'smoking_data';
-const DATA_KEY = 'smoking_data_json';
-const PUFFS_PER_CIGARETTE = 3; // 3口 = 1根烟
+const DATA_KEY = 'smoking_history_json';
 
-interface SmokingData {
-  todayPuffs: number; // 今日口数
-  todayCigarettes: number; // 今日烟数
-  todayDate: string; // 今日日期 YYYY-MM-DD
-  weekData: number[]; // 本周每天的虚拟烟根数 [周一, 周二, ..., 周日]
-  weekStartDate: string; // 本周开始日期
-  totalCigarettes: number; // 累计虚拟烟总数
+// 每日数据记录
+export interface DailyRecord {
+  date: string; // YYYY-MM-DD
+  puffs: number; // 当天口数
+  cigarettes: number; // 当天烟数
 }
 
-interface SmokingTodayData {
+// 历史数据结构（使用日期为key的映射）
+interface SmokingHistory {
+  records: Record<string, DailyRecord>; // { "2025-12-26": { date, puffs, cigarettes }, ... }
+}
+
+export interface SmokingTodayData {
   puffs: number;
   cigarettes: number;
 }
@@ -36,148 +38,159 @@ export class SmokingDataManager {
     }
   }
 
-  // 获取今日日期字符串
-  private static getTodayDateString(): string {
-    const today = new Date();
-    const year = today.getFullYear();
-    const month = String(today.getMonth() + 1).padStart(2, '0');
-    const day = String(today.getDate()).padStart(2, '0');
+  // 获取日期字符串 YYYY-MM-DD
+  private static getDateString(date: Date = new Date()): string {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
     return `${year}-${month}-${day}`;
   }
 
-  // 获取本周开始日期（周一）
-  private static getWeekStartDate(): string {
-    const today = new Date();
-    const day = today.getDay();
-    const diff = today.getDate() - day + (day === 0 ? -6 : 1); // 调整为周一
-    const monday = new Date(today.setDate(diff));
-    const year = monday.getFullYear();
-    const month = String(monday.getMonth() + 1).padStart(2, '0');
-    const dayStr = String(monday.getDate()).padStart(2, '0');
-    return `${year}-${month}-${dayStr}`;
-  }
-
-  // 获取今天是本周第几天（0=周一, 6=周日）
-  private static getDayOfWeek(): number {
-    const today = new Date();
-    const day = today.getDay();
-    return day === 0 ? 6 : day - 1; // 转换为 0=周一, 6=周日
-  }
-
-  // 加载数据
-  static async loadData(): Promise<SmokingData> {
+  // 加载历史数据
+  static async loadHistory(): Promise<SmokingHistory> {
     if (!SmokingDataManager.dataStore) {
       await SmokingDataManager.init();
     }
 
-    const todayDate = SmokingDataManager.getTodayDateString();
-    const weekStartDate = SmokingDataManager.getWeekStartDate();
-
     try {
-      const dataStr = await SmokingDataManager.dataStore?.get(DATA_KEY, '{}') as string;
-      let data: SmokingData = JSON.parse(dataStr || '{}');
-
-      // 如果是新的一天，重置今日数据
-      if (data.todayDate !== todayDate) {
-        data.todayPuffs = 0;
-        data.todayCigarettes = 0;
-        data.todayDate = todayDate;
-      }
-
-      // 如果是新的一周，重置本周数据
-      if (data.weekStartDate !== weekStartDate) {
-        data.weekData = [0, 0, 0, 0, 0, 0, 0];
-        data.weekStartDate = weekStartDate;
-      }
-
+      const dataStr = await SmokingDataManager.dataStore?.get(DATA_KEY, '{"records":{}}') as string;
+      const history: SmokingHistory = JSON.parse(dataStr || '{"records":{}}');
+      
       // 确保数据结构完整
-      if (!data.weekData || data.weekData.length !== 7) {
-        data.weekData = [0, 0, 0, 0, 0, 0, 0];
+      if (!history.records) {
+        history.records = {};
       }
       
-      // 确保累计字段存在（兼容旧数据）
-      if (data.totalCigarettes === undefined || data.totalCigarettes === null) {
-        data.totalCigarettes = 0;
-      }
-
-      return data;
+      return history;
     } catch (error) {
-      console.error('加载数据失败: ' + JSON.stringify(error));
-      return {
-        todayPuffs: 0,
-        todayCigarettes: 0,
-        todayDate: todayDate,
-        weekData: [0, 0, 0, 0, 0, 0, 0],
-        weekStartDate: weekStartDate,
-        totalCigarettes: 0
-      };
+      console.error('加载历史数据失败: ' + JSON.stringify(error));
+      return { records: {} };
     }
   }
 
-  // 保存数据
-  static async saveData(data: SmokingData): Promise<void> {
+  // 保存历史数据
+  static async saveHistory(history: SmokingHistory): Promise<void> {
     if (!SmokingDataManager.dataStore) {
       await SmokingDataManager.init();
     }
 
     try {
-      await SmokingDataManager.dataStore?.put(DATA_KEY, JSON.stringify(data));
+      await SmokingDataManager.dataStore?.put(DATA_KEY, JSON.stringify(history));
       await SmokingDataManager.dataStore?.flush();
     } catch (error) {
-      console.error('保存数据失败: ' + JSON.stringify(error));
+      console.error('保存历史数据失败: ' + JSON.stringify(error));
     }
+  }
+
+  // 获取指定日期的记录
+  private static getDateRecord(history: SmokingHistory, dateStr: string): DailyRecord {
+    if (!history.records[dateStr]) {
+      history.records[dateStr] = {
+        date: dateStr,
+        puffs: 0,
+        cigarettes: 0
+      };
+    }
+    return history.records[dateStr];
   }
 
   // 记录一次吸烟（增加1口）
   static async recordPuff(): Promise<void> {
-    const data = await SmokingDataManager.loadData();
+    const todayDate = SmokingDataManager.getDateString();
+    const history = await SmokingDataManager.loadHistory();
+    const todayRecord = SmokingDataManager.getDateRecord(history, todayDate);
     
-    // 增加口数
-    data.todayPuffs += 1;
+    todayRecord.puffs += 1;
     
-    await SmokingDataManager.saveData(data);
-    console.info(`记录吸烟: 今日口数=${data.todayPuffs}, 今日烟数=${data.todayCigarettes}`);
+    await SmokingDataManager.saveHistory(history);
+    console.info(`记录吸烟: 今日口数=${todayRecord.puffs}, 今日烟数=${todayRecord.cigarettes}`);
   }
 
   // 记录完整吸完一根
   static async recordCigarette(): Promise<void> {
-    const data = await SmokingDataManager.loadData();
-    data.todayCigarettes = (data.todayCigarettes ?? 0) + 1;
-    data.totalCigarettes = (data.totalCigarettes ?? 0) + 1;
+    const todayDate = SmokingDataManager.getDateString();
+    const history = await SmokingDataManager.loadHistory();
+    const todayRecord = SmokingDataManager.getDateRecord(history, todayDate);
     
-    // 更新本周数据（按根数统计）
-    const dayOfWeek = SmokingDataManager.getDayOfWeek();
-    data.weekData[dayOfWeek] = data.todayCigarettes;
+    todayRecord.cigarettes += 1;
     
-    await SmokingDataManager.saveData(data);
-    console.info(`记录整根: 今日烟数=${data.todayCigarettes}, 累计=${data.totalCigarettes}, 今日口数=${data.todayPuffs}`);
+    await SmokingDataManager.saveHistory(history);
+    console.info(`记录整根: 今日烟数=${todayRecord.cigarettes}, 今日口数=${todayRecord.puffs}`);
   }
 
   // 获取今日数据
   static async getTodayData(): Promise<SmokingTodayData> {
-    const data = await SmokingDataManager.loadData();
+    const todayDate = SmokingDataManager.getDateString();
+    const history = await SmokingDataManager.loadHistory();
+    const todayRecord = SmokingDataManager.getDateRecord(history, todayDate);
+    
     return {
-      puffs: data.todayPuffs,
-      cigarettes: data.todayCigarettes
+      puffs: todayRecord.puffs,
+      cigarettes: todayRecord.cigarettes
     };
   }
 
-  // 获取本周数据
+  // 获取本周数据（周一到周日的烟数数组）
   static async getWeekData(): Promise<number[]> {
-    const data = await SmokingDataManager.loadData();
-    return data.weekData;
+    const history = await SmokingDataManager.loadHistory();
+    const weekData: number[] = [0, 0, 0, 0, 0, 0, 0]; // 周一到周日
+    
+    // 获取本周一的日期
+    const today = new Date();
+    const dayOfWeek = today.getDay(); // 0=周日, 1=周一, ..., 6=周六
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // 计算到周一的偏移
+    
+    for (let i = 0; i < 7; i++) {
+      const date = new Date(today);
+      date.setDate(today.getDate() + mondayOffset + i);
+      const dateStr = SmokingDataManager.getDateString(date);
+      
+      if (history.records[dateStr]) {
+        weekData[i] = history.records[dateStr].cigarettes;
+      }
+    }
+    
+    return weekData;
   }
   
   // 获取本周总烟数
   static async getWeekTotal(): Promise<number> {
-    const data = await SmokingDataManager.loadData();
-    return data.weekData.reduce((sum, count) => sum + count, 0);
+    const weekData = await SmokingDataManager.getWeekData();
+    return weekData.reduce((sum, count) => sum + count, 0);
   }
   
   // 获取累计总烟数
   static async getTotalCigarettes(): Promise<number> {
-    const data = await SmokingDataManager.loadData();
-    return data.totalCigarettes ?? 0;
+    const history = await SmokingDataManager.loadHistory();
+    let total = 0;
+    
+    const dateKeys = Object.keys(history.records);
+    for (let i = 0; i < dateKeys.length; i++) {
+      const dateKey = dateKeys[i];
+      total += history.records[dateKey].cigarettes;
+    }
+    
+    return total;
+  }
+
+  // 获取所有历史记录（按日期倒序）
+  static async getAllRecords(): Promise<DailyRecord[]> {
+    const history = await SmokingDataManager.loadHistory();
+    const records: DailyRecord[] = [];
+    
+    const dateKeys = Object.keys(history.records);
+    for (let i = 0; i < dateKeys.length; i++) {
+      const dateKey = dateKeys[i];
+      const record = history.records[dateKey];
+      // 只返回有数据的记录
+      if (record.cigarettes > 0 || record.puffs > 0) {
+        records.push(record);
+      }
+    }
+    
+    // 按日期倒序排序
+    records.sort((a, b) => b.date.localeCompare(a.date));
+    
+    return records;
   }
 }
-

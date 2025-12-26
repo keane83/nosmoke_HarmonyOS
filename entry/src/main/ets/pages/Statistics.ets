@@ -33,11 +33,35 @@ struct Statistics {
 
   build() {
     Column() {
-      Text('吸虚拟烟统计')
-        .fontSize(24)
-        .fontWeight(FontWeight.Bold)
-        .fontColor('#333')
-        .margin({ top: 20, bottom: 30 })
+      // 顶部标题栏，带关闭按钮
+      Row() {
+        Button() {
+          Image($r('sys.media.ohos_ic_back'))
+            .width(20)
+            .height(20)
+        }
+        .width(40)
+        .height(40)
+        .backgroundColor(Color.White)
+        .onClick(() => {
+          router.back();
+        })
+
+        Text('吸虚拟烟统计')
+          .fontSize(24)
+          .fontWeight(FontWeight.Bold)
+          .fontColor('#333')
+          .layoutWeight(1)
+          .textAlign(TextAlign.Center)
+
+        // 占位，保持标题居中
+        Column()
+          .width(40)
+          .height(40)
+      }
+      .width('100%')
+      .padding({ left: 16, right: 16, top: 20 })
+      .margin({ bottom: 30 })
 
       // 今日统计
       Column() {
@@ -95,7 +119,7 @@ struct Statistics {
               // 柱状图表示
               Column()
                 .width(30)
-                .height(value * 20)
+                .height(value * 10)
                 .backgroundColor('#4A90E2')
                 .borderRadius(5)
                 .margin({ bottom: 5 })
@@ -104,13 +128,13 @@ struct Statistics {
                 .fontSize(12)
                 .fontColor('#666')
             }
-            .height(150)
+            // .height(150)
             .justifyContent(FlexAlign.End)
             .margin({ left: 5, right: 5 })
           })
         }
         .width('100%')
-        .height(150)
+        // .height(150)
         .justifyContent(FlexAlign.Center)
         .alignItems(VerticalAlign.Bottom)
       }
@@ -119,6 +143,21 @@ struct Statistics {
       .backgroundColor('#FFFFFF')
       .borderRadius(10)
       .shadow({ radius: 4, color: '#E0E0E0', offsetX: 0, offsetY: 2 })
+      .margin({ bottom: 30 })
+
+      // 详细历史按钮
+      Button('查看详细历史记录')
+        .width('90%')
+        .height(50)
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
+        .backgroundColor('#4CAF50')
+        .borderRadius(8)
+        .onClick(() => {
+          router.pushUrl({
+            url: 'pages/SmokingHistory'
+          });
+        })
     }
     .width('100%')
     .height('100%')
