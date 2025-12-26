@@ -34,8 +34,8 @@
     ],
     "requestPermissions": [
       {
-        "name": "ohos.permission.GYROSCOPE",
-        "reason": "$string:app_name",
+        "name": "ohos.permission.MICROPHONE",
+        "reason": "$string:microphone_permission_reason",
         "usedScene": {
           "abilities": [
             "EntryAbility"

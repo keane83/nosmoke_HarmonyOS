@@ -1,6 +1,20 @@
 {
   "app": {
-    "signingConfigs": [],
+    "signingConfigs": [
+      {
+        "name": "default",
+        "type": "HarmonyOS",
+        "material": {
+          "certpath": "/Users/keane/.ohos/config/default_NoSmoke_dx4Jhvi4Tq1sXfd5ynXo0FGLkvTtlncYeqdcvGT5iuQ=.cer",
+          "keyAlias": "debugKey",
+          "keyPassword": "0000001A1A5373D81494173C75FBC6724F01080AEA6CE46AB37F1DBB92EDECEF1379A59AC8DF76206D2E",
+          "profile": "/Users/keane/.ohos/config/default_NoSmoke_dx4Jhvi4Tq1sXfd5ynXo0FGLkvTtlncYeqdcvGT5iuQ=.p7b",
+          "signAlg": "SHA256withECDSA",
+          "storeFile": "/Users/keane/.ohos/config/default_NoSmoke_dx4Jhvi4Tq1sXfd5ynXo0FGLkvTtlncYeqdcvGT5iuQ=.p12",
+          "storePassword": "0000001A564E330555D8E84D3E8A17485B5D15A159238E66711989E74F3B9551CB62FD6214563F782C3A"
+        }
+      }
+    ],
     "products": [
       {
         "name": "default",

@@ -11,6 +11,10 @@
     {
       "name": "EntryAbility_label",
       "value": "label"
+    },
+    {
+      "name": "microphone_permission_reason",
+      "value": "需要麦克风权限以模拟吸烟动作"
     }
   ]
 }

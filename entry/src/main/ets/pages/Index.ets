@@ -2,6 +2,9 @@ import sensor from '@ohos.sensor';
 import { router } from '@kit.ArkUI';
 import audio from '@ohos.multimedia.audio';
 import { SmokingDataManager } from '../utils/SmokingDataManager';
+import { abilityAccessCtrl, common, Permissions } from '@kit.AbilityKit';
+import { MicrophoneManager } from '../sensor/SensorManager';
+
 
 
 
@@ -54,6 +57,11 @@ struct Index {
   private finishThreshold: number = 0.08; // 认为接近烟蒂的阈值（8%）
   private smokeRecoveryTimer?: number; // 吸烟后烟雾恢复的定时器
 
+
+  private microphoneManager: MicrophoneManager = MicrophoneManager.getInstance();
+  private checkTimer: number = -1;
+  private isSmorking: boolean = false;
+
   // 计算香烟尺寸信息
   private getCigaretteMetrics(): CigaretteMetrics {
     const containerHeight = this.viewHeight * 0.6;
@@ -78,9 +86,10 @@ struct Index {
   }
 
   aboutToAppear() {
-    this.initMicrophone();
-    this.initGyroscope();
+    // this.initMicrophone();
+    //this.initGyroscope();
     this.startAutoBurn();
+    this.startGame()
   }
 
   // 初始化麦克风
@@ -110,7 +119,7 @@ struct Index {
       }
     } catch (error) {
       const err = error as Error;
-      console.error('初始化麦克风失败: ' + err.message);
+      console.error('LIUJIAN 初始化麦克风失败: ' + err.message);
     }
   }
 
@@ -137,6 +146,8 @@ struct Index {
             const average = view.length > 0 ? sum / view.length : 0;
             const volume = average / 32768; // 归一化到0-1
 
+            console.error('LIUJIAN 音量: ' + volume);
+
             // 检测到声音（模拟吸烟），音量阈值可以调整
             if (volume > 0.15) {
               const now = Date.now();
@@ -151,7 +162,7 @@ struct Index {
           setTimeout(checkAudio, 100);
         } catch (error) {
           const err = error as Error;
-          console.error('读取音频失败: ' + err.message);
+          console.error('LIUJIAN 读取音频失败: ' + err.message);
           setTimeout(checkAudio, 100);
         }
       };
@@ -159,7 +170,7 @@ struct Index {
       checkAudio();
     } catch (error) {
       const err = error as Error;
-      console.error('获取缓冲区大小失败: ' + err.message);
+      console.error('LIUJIAN 获取缓冲区大小失败: ' + err.message);
     }
   }
 
@@ -211,9 +222,10 @@ struct Index {
     this.smokeRecoveryTimer = setTimeout(() => {
       animateTo({ duration: 800, curve: Curve.EaseIn }, () => {
         this.smokeOpacity = 1.0; // 恢复到100%
+        this.isSmorking = false
       });
       this.smokeRecoveryTimer = undefined;
-    }, 3000);
+    }, 1000);
 
     this.shrinkCigarette(0.05, 400);
   }
@@ -380,6 +392,7 @@ struct Index {
 
   // 重置香烟状态
   resetCigarette() {
+    this.isSmorking = false
     this.isSmokeFinished = false;
     this.cigaretteLength = 1.0;
     this.smokeOpacity = 1.0; // 恢复正常烟雾透明度
@@ -612,9 +625,10 @@ struct Index {
           // 烟头（head）- 向下移动
           Image($r('app.media.smoke_head'))
             .width(60)
+            .objectFit(ImageFit.Fill)
             .translate({
               x: 0,
-              y: this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength)
+              y: this.getCigaretteMetrics().headHeight * (1 - this.cigaretteLength) - 50
             })
             .zIndex(2) // 烟头在烟中间上面
         }
@@ -624,6 +638,7 @@ struct Index {
         // 烟蒂（tail）- 固定在底部
         Image($r('app.media.smoke_tail'))
           .width(60)
+          .objectFit(ImageFit.Fill)
           .expandSafeArea()
       }
       .width('100%')
@@ -657,5 +672,156 @@ struct Index {
       this.viewHeight = newValue.height as number;
       this.updateSmokePosition();
     })
+  }
+
+
+
+
+
+  async requestMicrophonePermission(): Promise<boolean> {
+    try {
+      console.info('aaa-- BlowCandlesGame', '开始请求麦克风权限');
+      // 获取context
+      const context = getContext(this) as common.UIAbilityContext;
+      if (!context) {
+        console.warn('aaa-- BlowCandlesGame', '无法获取context');
+        return false;
+      }
+      console.info('aaa-- BlowCandlesGame', '成功获取context');
+
+      // 检查权限状态
+      const atManager = abilityAccessCtrl.createAtManager();
+      const permission: Permissions = 'ohos.permission.MICROPHONE';
+
+      // 检查权限状态
+      let grantStatus: abilityAccessCtrl.GrantStatus;
+      try {
+        grantStatus = await atManager.checkAccessToken(context.applicationInfo.accessTokenId, permission);
+        console.info(`aaa-- BlowCandlesGame 权限检查结果, grantStatus=${grantStatus}`);
+      } catch (checkError) {
+        console.warn('aaa-- BlowCandlesGame', '权限检查异常，尝试请求权限:', checkError);
+        grantStatus = abilityAccessCtrl.GrantStatus.PERMISSION_DENIED;
+      }
+
+      if (grantStatus === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+        console.info('aaa-- BlowCandlesGame', '麦克风权限已授予，返回true');
+        return true;
+      }
+
+      // 请求权限
+      console.info('aaa-- BlowCandlesGame', '开始请求麦克风权限弹框');
+      const requestResult = await atManager.requestPermissionsFromUser(context, [permission]);
+      console.info('aaa-- BlowCandlesGame', '权限请求完成，结果:', JSON.stringify(requestResult));
+
+      if (requestResult.authResults && requestResult.authResults.length > 0) {
+        const resultStatus = requestResult.authResults[0];
+        console.info(`aaa-- BlowCandlesGame 权限请求结果状态: ${resultStatus}`);
+        if (resultStatus === abilityAccessCtrl.GrantStatus.PERMISSION_GRANTED) {
+          console.info('aaa-- BlowCandlesGame', '麦克风权限已授予，返回true');
+          return true;
+        } else {
+          console.warn('aaa-- BlowCandlesGame', '麦克风权限被拒绝，返回false');
+          return false;
+        }
+      }
+      console.warn('aaa-- BlowCandlesGame', '权限请求结果异常，返回false');
+      return false;
+    } catch (err) {
+      console.error('aaa-- BlowCandlesGame', '请求麦克风权限失败:', err);
+      return false;
+    }
+  }
+
+
+
+
+  /**
+   * 开始挑战
+   */
+  async startGame() {
+
+    console.info('aaa-- BlowCandlesGame', '开始游戏，准备请求权限');
+    // 先请求麦克风权限
+    const hasPermission = await this.requestMicrophonePermission();
+    console.info(`aaa-- BlowCandlesGame 权限请求结果: hasPermission=${hasPermission}`);
+
+    if (!hasPermission) {
+      // 权限被拒绝，仍然可以继续游戏（使用模拟数据）
+      console.warn('aaa-- BlowCandlesGame', '麦克风权限未授予，将使用模拟数据');
+    }
+
+
+    console.info('aaa-- BlowCandlesGame', '开始监听麦克风');
+    // 初始化麦克风管理器（传入context）
+    const context = getContext(this) as common.UIAbilityContext;
+    if (context) {
+      await this.microphoneManager.init(context);
+      console.info('aaa-- BlowCandlesGame', '麦克风管理器已初始化');
+    }
+
+    // 开始监听麦克风
+    await this.microphoneManager.startListening((volume: number) => {
+        this.handleMicrophoneData(volume);
+    });
+
+    // 检查是否使用模拟数据
+    const isUsingReal = this.microphoneManager.isUsingRealMicrophone();
+    console.info(`aaa-- BlowCandlesGame 是否使用真实麦克风: ${isUsingReal}`);
+    if (!isUsingReal) {
+      console.info('aaa-- BlowCandlesGame', '显示模拟数据警告弹框');
+      // this.showMockWarning = true;
+    } else {
+      console.info('aaa-- BlowCandlesGame', '使用真实麦克风，不显示模拟数据警告');
+      console.info('bbb-- BlowCandlesGame', '注意：当前使用文件大小变化估算音量，可能不够准确反映实际音量大小');
+      console.info('bbb-- BlowCandlesGame', '如果检测到的音量与实际声音大小无关，这是正常的，因为文件大小变化主要反映数据写入速度');
+    }
+
+    // 定期检查吹气
+    // this.blowTimer = setInterval(() => {
+    //   if (this.isPlaying) {
+    //     this.checkBlow();
+    //   }
+    // }, 200);
+
+
+    this.checkTimer = setInterval(() => {
+        this.checkFUNC();
+    }, 200);
+  }
+
+
+  async checkFUNC() {
+
+  }
+
+  /**
+   * 处理麦克风数据
+   */
+  handleMicrophoneData(volume: number) {
+    // 直接使用原始音量，不进行基线校准
+    //this.volume = volume;
+    console.info(`LIUJIAN bbb-- BlowCandlesGame 收到音量: ${volume.toFixed(3)}`);
+
+    if (this.isSmorking) {
+      return
+    }
+
+    if (volume > 0.1) {
+      this.isSmorking = true
+      this.simulateSmoking()
+    }
+  }
+
+
+  /**
+   * 停止挑战
+   */
+  async stopGame() {
+    await this.microphoneManager.stopListening();
+
+    if (this.checkTimer !== -1) {
+      clearInterval(this.checkTimer);
+      this.checkTimer = -1;
+    }
   }
 }

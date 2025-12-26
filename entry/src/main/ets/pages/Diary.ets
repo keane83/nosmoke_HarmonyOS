@@ -188,7 +188,7 @@ struct Diary {
                     Column() {
                       Row() {
 
-                        Text(group.date)
+                        Text(group.date + " ")
                           .fontSize(12)
                           .fontColor('#999')
 
