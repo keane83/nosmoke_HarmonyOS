@@ -543,10 +543,10 @@ struct Index {
                     lifetime: 120000,
                     lifetimeRange: 50000
                   },
-                  emitRate: this.isSmokeFinished ? 0 : 50, // 吸完后暂停粒子
-                  position: [this.smokePositionX - 20 , 2000], // 固定发射点，避免因位置变化重置
+                  emitRate: this.isSmokeFinished ? 0 : 100, // 吸完后暂停粒子
+                  position: [this.smokePositionX - 30 , 2000], // 固定发射点，避免因位置变化重置
                   shape: ParticleEmitterShape.CIRCLE,
-                  size: [40, 40]
+                  size: [60, 60]
                 },
                 color: { range: ['#666666', '#888888'] },
                 opacity: {
